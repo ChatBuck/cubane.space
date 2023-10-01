@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+//returns is host is setup already
 func IsFoundHost(host string, port uint16) bool {
 	target := fmt.Sprintf("%s:%d", host, port)
 
@@ -22,6 +23,7 @@ func IsFoundHost(host string, port uint16) bool {
 
 var PATTERN = regexp.MustCompile(`((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?\.){3})(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)`)
 
+//returns all peers neighbours
 func FindNeighbors(myHost string, myPort uint16, startIp uint8, endIp uint8, startPort uint16, endPort uint16) []string {
 	address := fmt.Sprintf("%s:%d", myHost, myPort)
 
@@ -45,6 +47,7 @@ func FindNeighbors(myHost string, myPort uint16, startIp uint8, endIp uint8, sta
 	return neighbors
 }
 
+//get host ip
 func GetHost() string {
 	hostname, err := os.Hostname()
 	if err != nil {

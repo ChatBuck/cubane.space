@@ -14,18 +14,22 @@ import (
 
 var cache map[string]*block.Blockchain = make(map[string]*block.Blockchain)
 
+
 type BlockchainServer struct {
 	port uint16
 }
 
+//returns new blockchain server
 func NewBlockchainServer(port uint16) *BlockchainServer {
 	return &BlockchainServer{port}
 }
 
+//returns new blockchain port
 func (bcs *BlockchainServer) Port() uint16 {
 	return bcs.port
 }
 
+//returns new blockchain
 func (bcs *BlockchainServer) GetBlockchain() *block.Blockchain {
 	bc, ok := cache["blockchain"]
 	if !ok {
@@ -39,6 +43,7 @@ func (bcs *BlockchainServer) GetBlockchain() *block.Blockchain {
 	return bc
 }
 
+//returns blockchain chain
 func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -55,6 +60,7 @@ func (bcs *BlockchainServer) GetChain(w http.ResponseWriter, req *http.Request) 
 	}
 }
 
+//returns transasactions pool from blockchain
 func (bcs *BlockchainServer) Transactions(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -145,6 +151,7 @@ func (bcs *BlockchainServer) Transactions(w http.ResponseWriter, req *http.Reque
 	}
 }
 
+//mines blockchain server
 func (bcs *BlockchainServer) Mine(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -168,6 +175,7 @@ func (bcs *BlockchainServer) Mine(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//start the blockchain server mining process
 func (bcs *BlockchainServer) StartMine(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -185,6 +193,7 @@ func (bcs *BlockchainServer) StartMine(w http.ResponseWriter, req *http.Request)
 	}
 }
 
+//get total amount in blockchain
 func (bcs *BlockchainServer) Amount(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -205,6 +214,7 @@ func (bcs *BlockchainServer) Amount(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//resolves all consensous related conflicts inside blockchain
 func (bcs *BlockchainServer) Consensus(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPut:
@@ -225,6 +235,7 @@ func (bcs *BlockchainServer) Consensus(w http.ResponseWriter, req *http.Request)
 	}
 }
 
+//runs blockchain and testing endpoints
 func (bcs *BlockchainServer) Run() {
 	bcs.GetBlockchain().Run()
 

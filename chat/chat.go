@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
+//chat variable for one to one chatting
 type ChatOne2One struct {
 	senderPrivateKey           string
 	senderPublicKey            string
@@ -24,6 +25,7 @@ type ChatOne2One struct {
 	Chat                       string
 }
 
+//chat variable for group chats
 type ChatGroup2One struct {
 	senderPrivateKey           string
 	senderPublicKey            string
@@ -32,17 +34,20 @@ type ChatGroup2One struct {
 	Chat                       string
 }
 
+//conversation id entails senderBlockchainAdress and recipientBlockchainAddress
 type ConversationId struct {
 	senderBlockchainAddress    string
 	recipientBlockchainAddress string
 }
 
+//defines a grp,it's private and public address and blockchainAddress
 type Group struct {
 	privateKey        *ecdsa.PrivateKey
 	publicKey         *ecdsa.PublicKey
 	blockchainAddress string
 }
 
+//creates and returns new group
 func NewGroup() *Group {
 	// 1. Creating ECDSA private key (32 bytes) public key (64 bytes)
 	w := new(Group)
@@ -82,25 +87,31 @@ func NewGroup() *Group {
 	return w
 }
 
+//returns private key for a group
 func (w *Group) PrivateKey() *ecdsa.PrivateKey {
 	return w.privateKey
 }
 
+//returns private key for a group in string format
 func (w *Group) PrivateKeyStr() string {
 	return fmt.Sprintf("%x", w.privateKey.D.Bytes())
 }
 
+//returns public Key for a group
 func (w *Group) PublicKey() *ecdsa.PublicKey {
 	return w.publicKey
 }
 
+//returns public Key string for a group
 func (w *Group) PublicKeyStr() string {
 	return fmt.Sprintf("%064x%064x", w.publicKey.X.Bytes(), w.publicKey.Y.Bytes())
 }
 
+//returns blockchain address for a group
 func (w *Group) BlockchainAddress() string {
 	return w.blockchainAddress
 }
+
 
 func (w *Group) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -114,6 +125,7 @@ func (w *Group) MarshalJSON() ([]byte, error) {
 	})
 }
 
+
 type ChatMessage struct {
 	senderPrivateKey           *ecdsa.PrivateKey
 	senderPublicKey            *ecdsa.PublicKey
@@ -122,17 +134,20 @@ type ChatMessage struct {
 	chat                       string
 }
 
+//returns chat in format of ChatMessage
 func NewChat(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey,
 	sender string, recipient string, chat string) *ChatMessage {
 	return &ChatMessage{privateKey, publicKey, sender, recipient, chat}
 }
 
+//returns signed chat signature
 func (t *ChatMessage) GenerateSignature() *utils.Signature {
 	m, _ := json.Marshal(t)
 	h := sha256.Sum256([]byte(m))
 	r, s, _ := ecdsa.Sign(rand.Reader, t.senderPrivateKey, h[:])
 	return &utils.Signature{R: r, S: s}
 }
+
 
 func (t *ChatMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -146,6 +161,7 @@ func (t *ChatMessage) MarshalJSON() ([]byte, error) {
 	})
 }
 
+
 type ChatRequest struct {
 	SenderPrivateKey           *string `json:"sender_private_key"`
 	SenderBlockchainAddress    *string `json:"sender_blockchain_address"`
@@ -154,6 +170,8 @@ type ChatRequest struct {
 	Chat                       *string `json:"chat"`
 }
 
+
+//returns if chatrequest is valid
 func (tr *ChatRequest) Validate() bool {
 	if tr.SenderPrivateKey == nil ||
 		tr.SenderBlockchainAddress == nil ||

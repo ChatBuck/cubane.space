@@ -30,16 +30,19 @@ func String2BigIntTuple(s string) (big.Int, big.Int) {
 	return bix, biy
 }
 
+//returnes signature from string
 func SignatureFromString(s string) *Signature {
 	x, y := String2BigIntTuple(s)
 	return &Signature{&x, &y}
 }
 
+//returns publickey from string
 func PublicKeyFromString(s string) *ecdsa.PublicKey {
 	x, y := String2BigIntTuple(s)
 	return &ecdsa.PublicKey{elliptic.P256(), &x, &y}
 }
 
+//returns private key using publickey and string
 func PrivateKeyFromString(s string, publicKey *ecdsa.PublicKey) *ecdsa.PrivateKey {
 	b, _ := hex.DecodeString(s[:])
 	var bi big.Int

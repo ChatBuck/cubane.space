@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"path"
 	"strconv"
-
 	"github.com/triyam/golang-blockchain/block"
 	"github.com/triyam/golang-blockchain/utils"
 	"github.com/triyam/golang-blockchain/wallet"
@@ -18,23 +17,28 @@ import (
 
 const tempDir = "wallet_server/templates"
 
+//wallet server struct
 type WalletServer struct {
 	port    uint16
 	gateway string
 }
 
+//returns new wallet server
 func NewWalletServer(port uint16, gateway string) *WalletServer {
 	return &WalletServer{port, gateway}
 }
 
+//returns wallet port
 func (ws *WalletServer) Port() uint16 {
 	return ws.port
 }
 
+//returns wallet gateway
 func (ws *WalletServer) Gateway() string {
 	return ws.gateway
 }
 
+//returns ?
 func (ws *WalletServer) Index(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -45,6 +49,7 @@ func (ws *WalletServer) Index(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//creates a new wallet
 func (ws *WalletServer) Wallet(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
@@ -58,6 +63,7 @@ func (ws *WalletServer) Wallet(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//creates a transactions using wallet
 func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodPost:
@@ -113,6 +119,7 @@ func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, req *http.Reque
 	}
 }
 
+//returns wallet amount
 func (ws *WalletServer) WalletAmount(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
@@ -160,6 +167,7 @@ func (ws *WalletServer) WalletAmount(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//runs wallet and query endpoints
 func (ws *WalletServer) Run() {
 	http.HandleFunc("/", ws.Index)
 	http.HandleFunc("/wallet", ws.Wallet)

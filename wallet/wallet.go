@@ -13,12 +13,14 @@ import (
 	"golang.org/x/crypto/ripemd160"
 )
 
+
 type Wallet struct {
 	privateKey        *ecdsa.PrivateKey
 	publicKey         *ecdsa.PublicKey
 	blockchainAddress string
 }
 
+//creates new wallet
 func NewWallet() *Wallet {
 	// 1. Creating ECDSA private key (32 bytes) public key (64 bytes)
 	w := new(Wallet)
@@ -58,26 +60,32 @@ func NewWallet() *Wallet {
 	return w
 }
 
+//returns wallet's private key
 func (w *Wallet) PrivateKey() *ecdsa.PrivateKey {
 	return w.privateKey
 }
 
+//returns wallet's privatekey in string
 func (w *Wallet) PrivateKeyStr() string {
 	return fmt.Sprintf("%x", w.privateKey.D.Bytes())
 }
 
+//returns wallet's public key
 func (w *Wallet) PublicKey() *ecdsa.PublicKey {
 	return w.publicKey
 }
 
+//returns wallet's public key in string
 func (w *Wallet) PublicKeyStr() string {
 	return fmt.Sprintf("%064x%064x", w.publicKey.X.Bytes(), w.publicKey.Y.Bytes())
 }
 
+//returns wallet's blockchain address
 func (w *Wallet) BlockchainAddress() string {
 	return w.blockchainAddress
 }
 
+//packing wallet components into json format
 func (w *Wallet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		PrivateKey        string `json:"private_key"`
@@ -90,6 +98,7 @@ func (w *Wallet) MarshalJSON() ([]byte, error) {
 	})
 }
 
+//
 type Transaction struct {
 	senderPrivateKey           *ecdsa.PrivateKey
 	senderPublicKey            *ecdsa.PublicKey
@@ -98,11 +107,13 @@ type Transaction struct {
 	value                      float32
 }
 
+//returns a new transaction
 func NewTransaction(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey,
 	sender string, recipient string, value float32) *Transaction {
 	return &Transaction{privateKey, publicKey, sender, recipient, value}
 }
 
+//returns signed transaction using ecdsa sign.What is edsca sign?
 func (t *Transaction) GenerateSignature() *utils.Signature {
 	m, _ := json.Marshal(t)
 	h := sha256.Sum256([]byte(m))
@@ -110,6 +121,7 @@ func (t *Transaction) GenerateSignature() *utils.Signature {
 	return &utils.Signature{R: r, S: s}
 }
 
+//
 func (t *Transaction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sender    string  `json:"sender_blockchain_address"`
@@ -122,6 +134,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	})
 }
 
+
 type TransactionRequest struct {
 	SenderPrivateKey           *string `json:"sender_private_key"`
 	SenderBlockchainAddress    *string `json:"sender_blockchain_address"`
@@ -130,6 +143,7 @@ type TransactionRequest struct {
 	Value                      *string `json:"value"`
 }
 
+//returns if transaction is valid or not
 func (tr *TransactionRequest) Validate() bool {
 	if tr.SenderPrivateKey == nil ||
 		tr.SenderBlockchainAddress == nil ||

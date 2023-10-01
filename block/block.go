@@ -12,10 +12,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/triyam/golang-blockchain/utils"
 )
 
+//
 const (
 	MINING_DIFFICULTY = 3
 	MINING_SENDER     = "1LXWUzSw66ucFfaQ4MDDaAtkzPahUJQKSV"
@@ -29,6 +29,7 @@ const (
 	BLOCKCHIN_NEIGHBOR_SYNC_TIME_SEC = 20
 )
 
+//here structure of blockchain has been specified
 type Block struct {
 	timestamp    int64
 	nonce        int
@@ -36,6 +37,7 @@ type Block struct {
 	transactions []*Transaction
 }
 
+//this fucntion will be resposnible for NewBlock creation must have struct Block type
 func NewBlock(nonce int, previousHash [32]byte, transactions []*Transaction) *Block {
 	b := new(Block)
 	b.timestamp = time.Now().UnixNano()
@@ -45,18 +47,22 @@ func NewBlock(nonce int, previousHash [32]byte, transactions []*Transaction) *Bl
 	return b
 }
 
+//returns previous hash for block b
 func (b *Block) PreviousHash() [32]byte {
 	return b.previousHash
 }
 
+//returns nonce for block b
 func (b *Block) Nonce() int {
 	return b.nonce
 }
 
+//returns transactions list for block b
 func (b *Block) Transactions() []*Transaction {
 	return b.transactions
 }
 
+//prints block b struct contents on screen/console
 func (b *Block) Print() {
 	fmt.Printf("timestamp       %d\n", b.timestamp)
 	fmt.Printf("nonce           %d\n", b.nonce)
@@ -66,11 +72,13 @@ func (b *Block) Print() {
 	}
 }
 
+//returns hash for block b
 func (b *Block) Hash() [32]byte {
 	m, _ := json.Marshal(b)
 	return sha256.Sum256([]byte(m))
 }
 
+//returns block b formatted in Block type struct
 func (b *Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Timestamp    int64          `json:"timestamp"`
@@ -84,6 +92,7 @@ func (b *Block) MarshalJSON() ([]byte, error) {
 		Transactions: b.transactions,
 	})
 }
+
 
 func (b *Block) UnmarshalJSON(data []byte) error {
 	var previousHash string
@@ -117,6 +126,7 @@ type Blockchain struct {
 	muxNeighbors sync.Mutex
 }
 
+//it will return new blockchain
 func NewBlockchain(blockchainAddress string, port uint16) *Blockchain {
 	b := &Block{}
 	bc := new(Blockchain)
@@ -126,16 +136,19 @@ func NewBlockchain(blockchainAddress string, port uint16) *Blockchain {
 	return bc
 }
 
+//returns blochain chain
 func (bc *Blockchain) Chain() []*Block {
 	return bc.chain
 }
 
+//runs blockchain bc
 func (bc *Blockchain) Run() {
 	bc.StartSyncNeighbors()
 	bc.ResolveConflicts()
 	bc.StartMining()
 }
 
+//set neighbouring peers configuartion
 func (bc *Blockchain) SetNeighbors() {
 	bc.neighbors = utils.FindNeighbors(
 		utils.GetHost(), bc.port,
@@ -155,10 +168,12 @@ func (bc *Blockchain) StartSyncNeighbors() {
 	_ = time.AfterFunc(time.Second*BLOCKCHIN_NEIGHBOR_SYNC_TIME_SEC, bc.StartSyncNeighbors)
 }
 
+//returns block transaction pool
 func (bc *Blockchain) TransactionPool() []*Transaction {
 	return bc.transactionPool
 }
 
+//clear block transaction pool
 func (bc *Blockchain) ClearTransactionPool() {
 	bc.transactionPool = bc.transactionPool[:0]
 }
@@ -183,6 +198,7 @@ func (bc *Blockchain) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+//creates a block then return it
 func (bc *Blockchain) CreateBlock(nonce int, previousHash [32]byte) *Block {
 	b := NewBlock(nonce, previousHash, bc.transactionPool)
 	bc.chain = append(bc.chain, b)
@@ -197,10 +213,12 @@ func (bc *Blockchain) CreateBlock(nonce int, previousHash [32]byte) *Block {
 	return b
 }
 
+//returns last block of blockchain
 func (bc *Blockchain) LastBlock() *Block {
 	return bc.chain[len(bc.chain)-1]
 }
 
+//
 func (bc *Blockchain) Print() {
 	for i, block := range bc.chain {
 		fmt.Printf("%s Chain %d %s\n", strings.Repeat("=", 25), i,
@@ -210,6 +228,7 @@ func (bc *Blockchain) Print() {
 	fmt.Printf("%s\n", strings.Repeat("*", 25))
 }
 
+//creates a transaction
 func (bc *Blockchain) CreateTransaction(sender string, recipient string, value float32,
 	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
 	isTransacted := bc.AddTransaction(sender, recipient, value, senderPublicKey, s)
@@ -230,10 +249,10 @@ func (bc *Blockchain) CreateTransaction(sender string, recipient string, value f
 			log.Printf("%v", resp)
 		}
 	}
-
 	return isTransacted
 }
 
+//adds and returns if transaction is valid or not
 func (bc *Blockchain) AddTransaction(sender string, recipient string, value float32,
 	senderPublicKey *ecdsa.PublicKey, s *utils.Signature) bool {
 	t := NewTransaction(sender, recipient, value)
@@ -254,9 +273,9 @@ func (bc *Blockchain) AddTransaction(sender string, recipient string, value floa
 		log.Println("ERROR: Verify Transaction")
 	}
 	return false
-
 }
 
+//verifies transaction signature
 func (bc *Blockchain) VerifyTransactionSignature(
 	senderPublicKey *ecdsa.PublicKey, s *utils.Signature, t *Transaction) bool {
 	m, _ := json.Marshal(t)
@@ -264,6 +283,7 @@ func (bc *Blockchain) VerifyTransactionSignature(
 	return ecdsa.Verify(senderPublicKey, h[:], s.R, s.S)
 }
 
+//copies transaction pool from blockchain then returns it
 func (bc *Blockchain) CopyTransactionPool() []*Transaction {
 	transactions := make([]*Transaction, 0)
 	for _, t := range bc.transactionPool {
@@ -275,6 +295,7 @@ func (bc *Blockchain) CopyTransactionPool() []*Transaction {
 	return transactions
 }
 
+//returns of proof is valid for blockchain
 func (bc *Blockchain) ValidProof(nonce int, previousHash [32]byte, transactions []*Transaction, difficulty int) bool {
 	zeros := strings.Repeat("0", difficulty)
 	guessBlock := Block{0, nonce, previousHash, transactions}
@@ -282,6 +303,7 @@ func (bc *Blockchain) ValidProof(nonce int, previousHash [32]byte, transactions 
 	return guessHashStr[:difficulty] == zeros
 }
 
+//returns nonce of blocchain after updating
 func (bc *Blockchain) ProofOfWork() int {
 	transactions := bc.CopyTransactionPool()
 	previousHash := bc.LastBlock().Hash()
@@ -292,6 +314,7 @@ func (bc *Blockchain) ProofOfWork() int {
 	return nonce
 }
 
+//??
 func (bc *Blockchain) Mining() bool {
 	bc.mux.Lock()
 	defer bc.mux.Unlock()
@@ -319,11 +342,13 @@ func (bc *Blockchain) Mining() bool {
 	return true
 }
 
+//starts blockchain minning
 func (bc *Blockchain) StartMining() {
 	bc.Mining()
 	_ = time.AfterFunc(time.Second*MINING_TIMER_SEC, bc.StartMining)
 }
 
+//retirns total transaction value in blockchain
 func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
 	var totalAmount float32 = 0.0
 	for _, b := range bc.chain {
@@ -341,6 +366,7 @@ func (bc *Blockchain) CalculateTotalAmount(blockchainAddress string) float32 {
 	return totalAmount
 }
 
+//returns if chain is valid or not
 func (bc *Blockchain) ValidChain(chain []*Block) bool {
 	preBlock := chain[0]
 	currentIndex := 1
@@ -360,6 +386,7 @@ func (bc *Blockchain) ValidChain(chain []*Block) bool {
 	return true
 }
 
+//resolve conflicts within blockchain
 func (bc *Blockchain) ResolveConflicts() bool {
 	var longestChain []*Block = nil
 	maxLength := len(bc.chain)
@@ -396,6 +423,7 @@ type Transaction struct {
 	value                      float32
 }
 
+//returns new transaction
 func NewTransaction(sender string, recipient string, value float32) *Transaction {
 	return &Transaction{sender, recipient, value}
 }
@@ -419,6 +447,7 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 	})
 }
 
+
 func (t *Transaction) UnmarshalJSON(data []byte) error {
 	v := &struct {
 		Sender    *string  `json:"sender_blockchain_address"`
@@ -435,6 +464,7 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+
 type TransactionRequest struct {
 	SenderBlockchainAddress    *string  `json:"sender_blockchain_address"`
 	RecipientBlockchainAddress *string  `json:"recipient_blockchain_address"`
@@ -443,6 +473,7 @@ type TransactionRequest struct {
 	Signature                  *string  `json:"signature"`
 }
 
+//returns if transaction is valid or not
 func (tr *TransactionRequest) Validate() bool {
 	if tr.SenderBlockchainAddress == nil ||
 		tr.RecipientBlockchainAddress == nil ||
@@ -454,9 +485,11 @@ func (tr *TransactionRequest) Validate() bool {
 	return true
 }
 
+//returns amount
 type AmountResponse struct {
 	Amount float32 `json:"amount"`
 }
+
 
 func (ar *AmountResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
