@@ -43,7 +43,6 @@ message TxInput {
 message TxOutput {
     int64 amount = 1;
     bytes address = 2;
-
 }
 
 message Transaction {
