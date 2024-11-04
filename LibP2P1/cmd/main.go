@@ -27,6 +27,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"github.com/libp2p/go-libp2p-kad-dht"
+)
+
+var (
+    bootstrapAddr = flag.String("bootstrap", "", "Bootstrap node multiaddr")
+    port          = flag.String("port", "8080", "Port for the REST API")
+    node          host.Host
 )
 
 type Transaction struct {
@@ -36,6 +43,7 @@ type Transaction struct {
 	Fee             int    `json:"fee"`
 	Nonce           int    `json:"nonce"`
 	Signature       string `json:"signature"`
+	TokenType 		string `json:"token_type"`
 }
 
 type Block struct {
@@ -48,6 +56,60 @@ type Block struct {
 
 var Blockchain []Block
 var mutex = &sync.Mutex{}
+
+type CubsToken struct {
+    Balance map[string]int
+}
+
+func NewCubsToken() *CubsToken {
+    return &CubsToken{Balance: make(map[string]int)}
+}
+
+func (token *CubsToken) Mint(address string, amount int) {
+    token.Balance[address] += amount
+}
+
+func (token *CubsToken) Transfer(from, to string, amount int) bool {
+    if token.Balance[from] >= amount {
+        token.Balance[from] -= amount
+        token.Balance[to] += amount
+        return true
+    }
+    return false
+}
+
+var cubsToken = NewCubsToken()
+
+func createHost(ctx context.Context) (host.Host, error) {
+    h, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", *port)))
+    if err != nil {
+        return nil, err
+    }
+
+    dht, err := dht.New(ctx, h)
+    if err != nil {
+        return nil, err
+    }
+
+    if *bootstrapAddr != "" {
+        log.Printf("Connecting to bootstrap node: %s", *bootstrapAddr)
+        maddr, err := ma.NewMultiaddr(*bootstrapAddr)
+        if err != nil {
+            return nil, fmt.Errorf("invalid bootstrap multiaddr: %v", err)
+        }
+        peerinfo, err := peer.AddrInfoFromP2pAddr(maddr)
+        if err != nil {
+            return nil, fmt.Errorf("error parsing bootstrap peer info: %v", err)
+        }
+        if err := h.Connect(ctx, *peerinfo); err != nil {
+            log.Printf("Error connecting to bootstrap node: %v", err)
+        } else {
+            log.Printf("Successfully connected to bootstrap node: %s", *bootstrapAddr)
+        }
+    }
+
+    return h, nil
+}
 
 func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error) {
 	var r io.Reader
@@ -65,7 +127,7 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 	priv := rsaKeyPair
 
 	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", listenPort)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
 		libp2p.Identity(priv),
 	}
 
@@ -155,78 +217,66 @@ type TransactionInput struct {
 	Fee             int    `json:"fee"`
 	Nonce           int    `json:"nonce"`
 	Signature       string `json:"signature"`
+	TokenType 		string `json:"token_type"`
 }
 
-//func verifySignature(pubKeyPEM, signatureHex string, tx Transaction) bool {
-//	block, _ := pem.Decode([]byte(pubKeyPEM))
-//	pubKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
-//	if err != nil {
-//		log.Println("Failed to parse public key:", err)
-//		return false
-//	}
-//
-//	pubKey := pubKeyInterface.(*rsa.PublicKey)
-//
-//	signatureBytes, err := hex.DecodeString(signatureHex)
-//	if err != nil {
-//		log.Println("Failed to decode signature:", err)
-//		return false
-//	}
-//
-//	txData, err := json.Marshal(tx)
-//	if err != nil {
-//		log.Println("Failed to marshal transaction:", err)
-//		return false
-//	}
-//
-//	hash := sha256.Sum256(txData)
-//	err = rsa.VerifyPKCS1v15(pubKey, stdCrypto.SHA256, hash[:], signatureBytes)
-//	if err != nil {
-//		log.Println("Failed to verify signature:", err)
-//		return false
-//	}
-//
-//	return true
-//}
 
 func handleTransaction(w http.ResponseWriter, r *http.Request) {
-	var txInput TransactionInput
-	if err := json.NewDecoder(r.Body).Decode(&txInput); err != nil {
-		http.Error(w, "Invalid input", http.StatusBadRequest)
-		return
-	}
+    log.Println("Received a transaction request")
+    var txInput TransactionInput
+    if err := json.NewDecoder(r.Body).Decode(&txInput); err != nil {
+        log.Println("Invalid transaction input:", err)
+        http.Error(w, "Invalid input", http.StatusBadRequest)
+        return
+    }
+    log.Printf("Processing transaction: %+v", txInput)
 
-	newTransaction := Transaction{
-		SenderPublicKey: txInput.SenderPublicKey,
-		Recipient:       txInput.Recipient,
-		Amount:          txInput.Amount,
-		Fee:             txInput.Fee,
-		Nonce:           txInput.Nonce,
-		Signature:       txInput.Signature,
-	}
+    if txInput.TokenType != "CubsToken" {
+        log.Println("Transaction rejected: Unsupported token type")
+        http.Error(w, "Only CubsToken transactions are allowed", http.StatusBadRequest)
+        return
+    }
 
-	//if !verifySignature(newTransaction.SenderPublicKey, newTransaction.Signature, newTransaction) {
-	//	http.Error(w, "Invalid transaction signature", http.StatusUnauthorized)
-	//	return
-	//}
+    if cubsToken.Balance[txInput.SenderPublicKey] < txInput.Amount+txInput.Fee {
+        log.Println("Transaction rejected: Insufficient CubsToken balance")
+        http.Error(w, "Insufficient CubsToken balance", http.StatusBadRequest)
+        return
+    }
 
-	newBlock := generateBlock(Blockchain[len(Blockchain)-1], []Transaction{newTransaction})
+    cubsToken.Transfer(txInput.SenderPublicKey, txInput.Recipient, txInput.Amount)
+    cubsToken.Balance[txInput.SenderPublicKey] -= txInput.Fee
+    log.Println("Transaction completed successfully, creating new block")
 
-	if isBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
-		mutex.Lock()
-		Blockchain = append(Blockchain, newBlock)
-		mutex.Unlock()
-	}
+    newTransaction := Transaction{
+        SenderPublicKey: txInput.SenderPublicKey,
+        Recipient:       txInput.Recipient,
+        Amount:          txInput.Amount,
+        Fee:             txInput.Fee,
+        Nonce:           txInput.Nonce,
+        Signature:       txInput.Signature,
+        TokenType:       txInput.TokenType,
+    }
 
-	bytes, err := json.Marshal(Blockchain)
-	if err != nil {
-		http.Error(w, "Failed to marshal blockchain", http.StatusInternalServerError)
-		return
-	}
+    newBlock := generateBlock(Blockchain[len(Blockchain)-1], []Transaction{newTransaction})
 
-	spew.Dump(Blockchain)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(bytes)
+    if isBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
+        mutex.Lock()
+        Blockchain = append(Blockchain, newBlock)
+        mutex.Unlock()
+        log.Println("New block added to the blockchain:", newBlock.Index)
+    } else {
+        log.Println("New block validation failed")
+    }
+
+    bytes, err := json.Marshal(Blockchain)
+    if err != nil {
+        log.Println("Error marshaling blockchain:", err)
+        http.Error(w, "Failed to marshal blockchain", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(bytes)
 }
 
 func isBlockValid(newBlock, oldBlock Block) bool {
@@ -275,13 +325,44 @@ func transactionsToString(transactions []Transaction) string {
 	return strings.Join(transactionStrings, ",")
 }
 
+func handleFaucet(w http.ResponseWriter, r *http.Request) {
+    address := r.URL.Query().Get("address")
+    if address == "" {
+        log.Println("Faucet request failed: Address required")
+        http.Error(w, "Address required", http.StatusBadRequest)
+        return
+    }
+
+    amount := 10
+    cubsToken.Mint(address, amount)
+    log.Printf("Minted %d CubsToken to address %s", amount, address)
+    fmt.Fprintf(w, "Minted %d CubsToken to address %s", amount, address)
+}
+
+func getBlockchain(w http.ResponseWriter, r *http.Request) {
+    // Dummy implementation; replace with real blockchain data retrieval
+    blockchain := []Block{{Index: 0, Timestamp: time.Now().String()}}
+    json.NewEncoder(w).Encode(blockchain)
+}
+
+func getBlockByHeight(w http.ResponseWriter, r *http.Request) {
+    // Dummy block retrieval by height; replace with real data
+    height := r.URL.Query().Get("height")
+    if height == "" {
+        http.Error(w, "Height not specified", http.StatusBadRequest)
+        return
+    }
+    block := Block{Index: 0, Timestamp: time.Now().String()}
+    json.NewEncoder(w).Encode(block)
+}
 func main() {
+	flag.Parse()
 	t := time.Now()
 	genesisBlock := Block{}
 	genesisBlock = Block{0, t.String(), []Transaction{}, calculateHash(genesisBlock), ""}
 
 	Blockchain = append(Blockchain, genesisBlock)
-
+	cubsToken.Mint("genesisAddress", 1000000)
 	golog.SetAllLoggers(golog.LogLevel(gologging.INFO))
 
 	listenF := flag.Int("l", 0, "wait for incoming connections")
@@ -298,9 +379,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	dht, err := dht.New(context.Background(), ha)
+	if err != nil {
+		log.Fatal("Error initializing DHT:", err)
+	}
+
+	err = dht.Bootstrap(context.Background())
+	if err != nil {
+		log.Fatal("Error bootstrapping DHT:", err)
+	}
 
 	httpPort := *listenF + 1000
 	http.HandleFunc("/transaction", handleTransaction)
+	http.HandleFunc("/faucet", handleFaucet)
+	http.HandleFunc("/blockchain", getBlockchain)
+    http.HandleFunc("/block", getBlockByHeight)
 	go func() {
 		log.Printf("Starting HTTP server on port %d\n", httpPort)
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil))
